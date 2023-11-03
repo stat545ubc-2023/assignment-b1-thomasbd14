@@ -1,0 +1,119 @@
+---
+title: "tdeckers_assignement_b1"
+author: "Thomas Deckers"
+date: "01/11/2023"
+output: github_document
+---
+
+```{R}
+suppressPackageStartupMessages(library(tidyverse))
+suppressPackageStartupMessages(library(palmerpenguins))
+```
+
+# Function Definition
+One helpful function, and similar to something I found myself doing in part A of
+the course, is collecting the four quartiles of a numerical variable. I'll allow
+the ability to use `group_by` as well. I'll write up and document this function.
+
+```{R}
+#' @Title Get Quartiles
+#' 
+#' This function returns a table of the quartiles for a given numerical variable
+#' in a tibble, optionally divided into categories based on an additional column.
+#' 
+#' @param data the input data table to be analyzed. Named because data is the 
+#' typical thing to analyze in this fashion (and for consistency with dplyr)
+#' @param summarized_variable the name of a numerical column in `data` for which
+#' to calculate the quartiles.Named because this variable will be summarized.
+#' @param grouping_variable (optional) the name of a column in `data` with a 
+#' categorical variable. If specified, the results will be summarized within 
+#' each unique entry of `grouping_variable`. Named since this is the variable 
+#' used for grouping the output.
+#' 
+#' @return a tibble of 3 columns showing the lower quartile, mean, and upper
+#' quartile of `summarized_variable`, ignoring NA values. If `grouping_variable`
+#' is not specified, the table will have one row representing the entire data. If 
+#' `grouping_variable` is specified, each row shows the quartile within one 
+#' unique category, as specified.
+
+get_quartiles <- function(data, summarized_variable, grouping_variable = NULL){
+   
+  #get our column names as strings for error checking
+  sum_var_str <- deparse(substitute(summarized_variable))
+  grp_var_str <- deparse(substitute(grouping_variable))
+  
+  #Check if all variables have been specified
+  if(is.null(data)){
+    stop("Please specify data")
+  }
+  if(is.null(summarized_variable)){
+    stop("Please speficy a varaible to summarize")
+  }
+  
+  #check for non-numeric summarized_variable
+  if(!is.numeric(data[[sum_var_str]])){
+    stop("Summarized_variable must be a numeric column\n",
+         sum_var_str, " is of type ", class(data[[sum_var_str]][1]))
+  }
+  
+  #check if we are going to remove any NA values, warn if so
+  if(anyNA(data[[sum_var_str]]) || (!is.null(grp_var_str) && anyNA(data[[grp_var_str]]))){
+    warning("removing NA values")
+  }
+  
+  
+  
+  #execute the function
+  data %>% group_by({{grouping_variable}}) %>%
+    summarize(lower_quartile = quantile({{summarized_variable}},0.25, na.rm = TRUE), 
+              median = median({{summarized_variable}}, na.rm = TRUE),
+              upper_quartile = quantile({{summarized_variable}},0.75, , na.rm = TRUE)
+              )
+}
+```
+
+# Demonstration
+
+Let's try this out with the `palmerpenguins` dataset.
+We'll check out the quartiles of the bill length, sorted by species
+
+```{R}
+get_quartiles(penguins, bill_length_mm, species)
+```
+And, because of our use of the default variable, we can also summarize over the 
+whole dataset without grouping.
+
+```{R}
+get_quartiles(penguins, bill_length_mm)
+```
+Lets get a feel for some of our error conditions. We'll try a non-numeric `summarized_variable`
+
+```{R error=TRUE}
+get_quartiles(penguins, island)
+```
+Or when we give a column that doesn't exist at all
+
+```{R error=TRUE}
+get_quartiles(penguins, country)
+```
+
+# Error Checking
+
+Let's do a more formal error check. I'll make a few simple datasets with some
+interesting cases
+
+```{R}
+
+# Simple case with only one variable
+one_category_test <- tibble(values = c(0,1,2,3,4))
+get_quartiles(one_category_test, values)
+
+# Now let's add some categories
+two_category_test <- tibble(categories = c("a","a","a","a","a","b","b","b","b","b"),
+       values = c(1,1,1,1,1,2,3,4,5,6))
+get_quartiles(two_category_test,values, categories)
+# Try numerical categories
+two_category_numerical_test <- tibble(categories = c(1,1,1,1,1,2,2,2,2,2),
+       values = c(1,1,1,1,1,2,3,4,5,6))
+get_quartiles(two_category_numerical_test, values, categories)
+```
